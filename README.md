@@ -47,26 +47,47 @@ Using `gliner2-multi-v1` (mDeBERTa-v3-base, 100+ languages).
 | Method | NER | Relation Extraction | Notes |
 |--------|-----|---------------------|-------|
 | FP16 | ✅ | ✅ | 推薦，精度無損 |
-| INT8 | ⚠️ 可用 | ❌ 壞掉 | 僅 NER 場景 |
+| INT8 | ✅ 可用 | ⚠️ 待測 | fp16→fp32→int8 三步轉換，見 `convert/fix_fp16.py` |
 | INT4/Q4 | ❌ 無人測試 | ❌ | DeBERTa encoder 可能崩潰 |
 | GGUF | ❌ 不可行 | ❌ | llama.cpp 不支援 encoder-only |
+
+### INT8 on RK3588S (NanoPi M6)
+
+| Variant | Size | Encoder Time | Speedup |
+|---------|------|-------------|---------|
+| fp16 | 531MB | 1878ms | 1.00× |
+| **int8** | **322MB** | **853ms** | **2.20×** |
+
+> 詳見 [`reports/rk3588s_benchmark.md`](reports/rk3588s_benchmark.md)
+
+**⚠️ INT8 量化踩坑：** fp16 ONNX 直接做 `quantize_dynamic` 會爆，需要先清除 153+ 個隱藏的 fp16 tensor（Constant 節點屬性、ConstantOfShape、Cast target）。用 `python/convert/fix_fp16.py` 處理。
 
 ## Directory Layout
 
 ```
-GLiNER/
+GLiNER-Forge/
 ├── python/
 │   ├── gliner_mlx/      # MLX Python inference (OpenMed)
 │   ├── gliner_onnx/     # ONNX Runtime inference
-│   ├── convert/         # to_onnx, to_mlx, quantize
+│   │   ├── infer.py             # macOS (CoreML)
+│   │   └── infer_crossplatform.py # macOS + Linux ARM
+│   ├── convert/         # to_onnx, to_mlx, quantize, fix_fp16
+│   │   ├── fix_fp16.py          # fp16→fp32 cleanup (required before int8)
+│   │   ├── quantize.py
+│   │   ├── to_mlx.py
+│   │   └── to_onnx.py
 │   └── requirements.txt
 ├── native/
 │   ├── src/             # gliner_wrapper.h/.cpp (MLX C++)
 │   ├── dart/            # Dart FFI binding
 │   ├── swift/           # Swift bridge
 │   └── build.sh
-├── models/              # weights (gitignored)
 ├── bench/               # speed & accuracy benchmarks
+│   ├── bench_rk3588s.py         # NanoPi M6 (RK3588S) benchmark
+│   └── ...
+├── reports/
+│   └── rk3588s_benchmark.md     # RK3588S detailed report
+├── models/              # weights (gitignored)
 └── README.md
 ```
 
