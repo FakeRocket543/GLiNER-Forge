@@ -1,25 +1,38 @@
 #!/bin/bash
-# Build GLiNER MLX native wrapper
-# Requires: MLX C++ headers + libmlx.a from dart-ml-forge/mlx/shared/build
+# Build GLiNER native wrapper (ONNX Runtime + tokenizers-cpp)
+#
+# Prerequisites:
+#   brew install onnxruntime
+#   # Or download from https://github.com/microsoft/onnxruntime/releases
+#
+# Tokenizer dependency (pick one):
+#   - tokenizers-cpp: https://github.com/pijyoi/tokenizers_cpp
+#   - Or link against HuggingFace tokenizers Rust lib via C FFI
+
 set -e
+cd "$(dirname "$0")"
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-MLX_SHARED="${HOME}/Python/dart-ml-forge/mlx/shared"
-MLX_BUILD="${MLX_SHARED}/build"
+ONNXRT_PREFIX="${ONNXRUNTIME_DIR:-/opt/homebrew}"
+TOKENIZERS_DIR="${TOKENIZERS_CPP_DIR:-/opt/homebrew}"
 
-if [ ! -f "${MLX_BUILD}/lib/libmlx.a" ]; then
-    echo "ERROR: libmlx.a not found. Build mlx/shared first:"
-    echo "  cd ${MLX_SHARED} && ./build.sh"
-    exit 1
-fi
+echo "=== Building gliner_wrapper ==="
+echo "  ONNX Runtime: ${ONNXRT_PREFIX}"
+echo "  Tokenizers:   ${TOKENIZERS_DIR}"
 
-echo "Building libgliner_wrapper.dylib..."
+# Compile (stub tokenizer for now — replace with real impl)
 clang++ -std=c++17 -O2 -shared -fPIC \
-    -I"${MLX_BUILD}/include" \
-    -I"${MLX_SHARED}/mlx-c/include" \
-    -L"${MLX_BUILD}/lib" \
-    -lmlx -framework Metal -framework Foundation -framework Accelerate \
-    -o "${SCRIPT_DIR}/../dist/libgliner_wrapper.dylib" \
-    "${SCRIPT_DIR}/src/gliner_wrapper.cpp"
+    -I "${ONNXRT_PREFIX}/include" \
+    -I "${ONNXRT_PREFIX}/include/onnxruntime" \
+    -I "${TOKENIZERS_DIR}/include" \
+    -L "${ONNXRT_PREFIX}/lib" \
+    -L "${TOKENIZERS_DIR}/lib" \
+    -lonnxruntime \
+    -o libgliner.dylib \
+    src/gliner_wrapper.cpp \
+    src/tokenizer_stub.cpp
 
-echo "Done → dist/libgliner_wrapper.dylib"
+echo "=== Built: libgliner.dylib ==="
+echo ""
+echo "Remaining TODO:"
+echo "  - Implement src/tokenizer_stub.cpp with real HF tokenizer"
+echo "  - Or link tokenizers-cpp / sentencepiece"

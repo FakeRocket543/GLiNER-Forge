@@ -1,0 +1,31 @@
+[project]
+name = "gliner-forge"
+version = "0.1.0"
+description = "GLiNER multi-backend benchmark & standalone ONNX inference"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "onnxruntime>=1.16",
+    "transformers>=4.36",
+    "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+bench = [
+    "gliner>=0.2.26",
+    "torch>=2.0",
+]
+mlx = [
+    "openmed[mlx]>=0.1",
+]
+
+[project.scripts]
+gliner-bench = "gliner_forge.bench:main"
+gliner-infer = "gliner_forge.onnx_infer:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gliner_forge"]
