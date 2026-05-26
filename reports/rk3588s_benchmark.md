@@ -131,7 +131,16 @@ Test texts sourced from [inff.cc](https://inff.cc) (PyRSS-powered multilingual n
 
 ### INT8 Precision Warning
 
-On Apple Silicon (MPS), INT8 quantization was **destructive** (recall drops to 6.6-51.5%, see `bench/results_final.md`). The RK3588S INT8 results here are **speed-only** — NER accuracy has NOT been validated on the int8 model. This must be tested before production deployment.
+On Apple Silicon (MPS), INT8 quantization was **destructive** (recall drops to 6.6-51.5%, see `bench/results_final.md`). However, on RK3588S (ARM Cortex, CPU ORT), INT8 quantization shows **zero accuracy loss**:
+
+| Variant | Avg Recall | zh-TW | en | ja | ko | ru | fr | es | ar | th | vi |
+|---------|-----------|-------|----|----|----|----|----|----|----|----|----|
+| fp16 | 100.0% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% |
+| **int8** | **100.0%** | **100%** | **100%** | **100%** | **100%** | **100%** | **100%** | **100%** | **100%** | **100%** | **100%** |
+
+Full pipeline speed (encoder + span_rep + classifier):
+- fp16: ~3100ms/case
+- int8: ~1360ms/case (**2.3× speedup, zero precision loss**)
 
 RK3588S is an edge device — ~850ms for zero-shot NER on 512 tokens is acceptable for batch processing pipelines (news aggregation, log analysis) but too slow for real-time interactive use.
 

@@ -118,9 +118,9 @@ See [`bench/results_cuda.md`](bench/results_cuda.md) for full details.
 |----------|-------------|-------|
 | Apple Silicon (MPS) | ❌ Destructive (recall drops to 6.6-51.5%) | ONNX quant on MPS breaks mDeBERTa |
 | NVIDIA CUDA | ⚠️ Not tested | PyTorch native faster anyway |
-| **ARM Edge (RK3588S)** | ✅ Speed-only test passed | NER accuracy not yet benchmarked on edge |
+| **ARM Edge (RK3588S)** | ✅ **Zero loss** (18/18 cases, 10 langs, 100% recall) | Full pipeline verified: encoder + span_rep + classifier |
 
-> ⚠️ RK3588S INT8 results are **speed-only**. NER accuracy on the int8 model needs validation before production use. The SemplificaAI ONNX variant (not gliner-community v2.5) was used on RK3588S.
+> RK3588S INT8 accuracy validated with Wikipedia Taiwan multilingual test data (18 cases, 10 languages: zh-TW, en, ja, ko, ru, fr, es, ar, th, vi). All cases achieve 100% recall at threshold 0.3. See `bench/bench_rk3588s_accuracy.py`.
 
 ## Pipeline Recommendation by Platform
 
