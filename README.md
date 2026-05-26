@@ -70,6 +70,19 @@ GLiNER/
 └── README.md
 ```
 
+## CUDA Results (Quadro T2000, 4GB VRAM)
+
+See [`bench/results_cuda.md`](bench/results_cuda.md) for full details.
+
+| Model | VRAM | Avg ms/article | Notes |
+|-------|------|----------------|-------|
+| **small-v2.5** | 675 MB | **94 ms** | Best speed/VRAM ratio |
+| medium-v2.5 | 836 MB | 112 ms | Marginal improvement |
+| large-v2.5 | 1838 MB | 236 ms | Best precision |
+| ONNX (CUDA) | — | 162 ms | Slower than PyTorch on CUDA |
+
+**Key finding**: ONNX wins on Apple Silicon, PyTorch wins on CUDA.
+
 ## References
 
 - [GLiNER repo](https://github.com/urchade/GLiNER)
