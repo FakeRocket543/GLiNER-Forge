@@ -118,13 +118,20 @@ Test texts sourced from [inff.cc](https://inff.cc) (PyRSS-powered multilingual n
 
 ---
 
-## Comparison: macOS vs RK3588S
+## Comparison: macOS vs CUDA vs RK3588S
 
-| Platform | fp16 Encoder | int8 Encoder |
-|----------|-------------|--------------|
-| MacBook Pro M3 (est.) | ~50ms | ~25ms |
-| **RK3588S (ARM Cortex)** | **1878ms** | **853ms** |
-| Speed gap | ~37× slower | ~34× slower |
+| Platform | Hardware | Backend | Encoder Time | Speedup vs fp16 |
+|----------|----------|---------|-------------|-----------------|
+| MacBook Pro M3 | Apple Silicon | ONNX FP32 | ~13ms | — (different model) |
+| Quadro T2000 | NVIDIA 4GB | PyTorch FP32 | ~94ms | — (different model) |
+| **NanoPi M6** | **RK3588S** | **ONNX fp16** | **1878ms** | **1.00×** |
+| **NanoPi M6** | **RK3588S** | **ONNX int8** | **853ms** | **2.20×** |
+
+> Note: Apple/NVIDIA use `gliner-community/small-v2.5`, RK3588S uses `SemplificaAI/gliner2-multi-v1-onnx`. Different model variants, not directly comparable on speed alone.
+
+### INT8 Precision Warning
+
+On Apple Silicon (MPS), INT8 quantization was **destructive** (recall drops to 6.6-51.5%, see `bench/results_final.md`). The RK3588S INT8 results here are **speed-only** — NER accuracy has NOT been validated on the int8 model. This must be tested before production deployment.
 
 RK3588S is an edge device — ~850ms for zero-shot NER on 512 tokens is acceptable for batch processing pipelines (news aggregation, log analysis) but too slow for real-time interactive use.
 

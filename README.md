@@ -1,6 +1,6 @@
-# GLiNER — Local Inference on Apple Silicon
+# GLiNER-Forge — Multi-Platform GLiNER Inference
 
-Zero-shot NER (Named Entity Recognition) via GLiNER2, optimized for macOS.
+Zero-shot NER (Named Entity Recognition) via GLiNER2, benchmarked across **macOS (Apple Silicon)**, **NVIDIA CUDA**, and **ARM edge (RK3588S)**.
 
 ## Two Tracks
 
@@ -103,6 +103,32 @@ See [`bench/results_cuda.md`](bench/results_cuda.md) for full details.
 | ONNX (CUDA) | — | 162 ms | Slower than PyTorch on CUDA |
 
 **Key finding**: ONNX wins on Apple Silicon, PyTorch wins on CUDA.
+
+## Cross-Platform Comparison
+
+| Platform | Hardware | Backend | Best Model | Latency | VRAM/RAM |
+|----------|----------|---------|------------|---------|----------|
+| **Apple Silicon** | M-series (MPS) | ONNX FP32 | small-v2.5 | **13ms** | ~900MB |
+| **NVIDIA CUDA** | Quadro T2000 (4GB) | PyTorch FP32 | small-v2.5 | **94ms** | 675MB |
+| **ARM Edge** | RK3588S (NanoPi M6) | ONNX INT8 | gliner2-multi-v1 | **853ms** | 322MB |
+
+### INT8 Precision Note
+
+| Platform | INT8 Impact | Notes |
+|----------|-------------|-------|
+| Apple Silicon (MPS) | ❌ Destructive (recall drops to 6.6-51.5%) | ONNX quant on MPS breaks mDeBERTa |
+| NVIDIA CUDA | ⚠️ Not tested | PyTorch native faster anyway |
+| **ARM Edge (RK3588S)** | ✅ Speed-only test passed | NER accuracy not yet benchmarked on edge |
+
+> ⚠️ RK3588S INT8 results are **speed-only**. NER accuracy on the int8 model needs validation before production use. The SemplificaAI ONNX variant (not gliner-community v2.5) was used on RK3588S.
+
+## Pipeline Recommendation by Platform
+
+| Platform | Model | Backend | Quantization |
+|----------|-------|---------|-------------|
+| Apple Silicon | small-v2.5 | ONNX FP32 (th=0.1) | None |
+| NVIDIA GPU | small-v2.5 | PyTorch CUDA (th=0.3) | None |
+| ARM Edge (RK3588S) | gliner2-multi-v1 | ONNX INT8 | Dynamic int8 via fix_fp16.py |
 
 ## References
 
