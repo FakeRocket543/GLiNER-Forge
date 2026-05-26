@@ -1,0 +1,12 @@
+models/
+*.dylib
+*.so
+__pycache__/
+*.egg-info/
+.venv/
+dist/
+build/
+*.onnx
+*.safetensors
+*.bin
+.DS_Store
