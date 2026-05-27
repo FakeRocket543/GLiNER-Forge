@@ -10,3 +10,9 @@ build/
 *.safetensors
 *.bin
 .DS_Store
+native/bench_gliner
+native/test_gliner
+native/test_gliner_asan
+native/*.dSYM/
+native/tokenizers-cpp/
+native/libgliner.dylib
