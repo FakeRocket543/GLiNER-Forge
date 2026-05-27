@@ -26,8 +26,8 @@
 
 // Forward declarations for tokenizer (implementation-defined)
 struct HFTokenizer;
-HFTokenizer *hf_tokenizer_load(const char *tokenizer_json_path);
-void hf_tokenizer_free(HFTokenizer *tok);
+extern "C" HFTokenizer *hf_tokenizer_load(const char *tokenizer_json_path);
+extern "C" void hf_tokenizer_free(HFTokenizer *tok);
 
 struct TokenizeResult {
     std::vector<int64_t> input_ids;
@@ -230,11 +230,23 @@ GlinerResult gliner_predict(GlinerHandle handle,
         result.error_msg = api->GetErrorMessage(run_status);
         goto cleanup;
     }
+    if (!output) {
+        result.error_code = 3;
+        result.error_msg = "ONNX Run returned null output";
+        goto cleanup;
+    }
 
     {
         // Step 7: Decode logits
-        float *logits_data;
-        api->GetTensorMutableData(output, (void **)&logits_data);
+        float *logits_data = nullptr;
+        OrtStatus *tstat = api->GetTensorMutableData(output, (void **)&logits_data);
+        if (tstat) {
+            result.error_code = 4;
+            result.error_msg = api->GetErrorMessage(tstat);
+            goto cleanup;
+        }
+        // If model output has 0 classes (e.g. labels not recognized), return empty
+        if (!logits_data) goto cleanup;
         // Shape: (1, L, K, C) where L=num_words, K=max_width, C=num_labels
         int L = num_words, C = num_labels;
 

@@ -3,36 +3,70 @@
 #
 # Prerequisites:
 #   brew install onnxruntime
-#   # Or download from https://github.com/microsoft/onnxruntime/releases
+#   # tokenizers-cpp: clone & build mlc-ai/tokenizers-cpp
 #
-# Tokenizer dependency (pick one):
-#   - tokenizers-cpp: https://github.com/pijyoi/tokenizers_cpp
-#   - Or link against HuggingFace tokenizers Rust lib via C FFI
+# Usage:
+#   ./build.sh              # build with real tokenizer (default)
+#   ./build.sh --stub       # build with stub tokenizer (compile-only testing)
 
 set -e
 cd "$(dirname "$0")"
 
 ONNXRT_PREFIX="${ONNXRUNTIME_DIR:-/opt/homebrew}"
-TOKENIZERS_DIR="${TOKENIZERS_CPP_DIR:-/opt/homebrew}"
+TOKENIZERS_DIR="${TOKENIZERS_CPP_DIR:-$(pwd)/tokenizers-cpp}"
+USE_STUB=0
+
+if [[ "$1" == "--stub" ]]; then
+    USE_STUB=1
+fi
 
 echo "=== Building gliner_wrapper ==="
 echo "  ONNX Runtime: ${ONNXRT_PREFIX}"
-echo "  Tokenizers:   ${TOKENIZERS_DIR}"
 
-# Compile (stub tokenizer for now — replace with real impl)
+if [[ $USE_STUB -eq 1 ]]; then
+    echo "  Tokenizer:    STUB (no real inference)"
+    TOK_SRC="src/tokenizer_stub.cpp"
+    TOK_FLAGS=""
+else
+    echo "  Tokenizer:    tokenizers-cpp @ ${TOKENIZERS_DIR}"
+    TOK_SRC="src/hf_tokenizer.cpp"
+    TOK_FLAGS="-I ${TOKENIZERS_DIR}/include -L ${TOKENIZERS_DIR}/build -ltokenizers_cpp -ltokenizers_c"
+
+    if [[ ! -d "${TOKENIZERS_DIR}" ]]; then
+        echo ""
+        echo "ERROR: tokenizers-cpp not found at ${TOKENIZERS_DIR}"
+        echo "  git clone https://github.com/mlc-ai/tokenizers-cpp.git"
+        echo "  cd tokenizers-cpp && mkdir build && cd build && cmake .. && make -j"
+        echo ""
+        echo "Or set TOKENIZERS_CPP_DIR=/path/to/tokenizers-cpp"
+        echo "Or use: ./build.sh --stub"
+        exit 1
+    fi
+fi
+
 clang++ -std=c++17 -O2 -shared -fPIC \
     -I "${ONNXRT_PREFIX}/include" \
     -I "${ONNXRT_PREFIX}/include/onnxruntime" \
-    -I "${TOKENIZERS_DIR}/include" \
     -L "${ONNXRT_PREFIX}/lib" \
-    -L "${TOKENIZERS_DIR}/lib" \
     -lonnxruntime \
+    ${TOK_FLAGS} \
     -o libgliner.dylib \
     src/gliner_wrapper.cpp \
-    src/tokenizer_stub.cpp
+    ${TOK_SRC}
 
 echo "=== Built: libgliner.dylib ==="
-echo ""
-echo "Remaining TODO:"
-echo "  - Implement src/tokenizer_stub.cpp with real HF tokenizer"
-echo "  - Or link tokenizers-cpp / sentencepiece"
+
+# Also build test binary if main exists
+if [[ -f src/test_main.cpp ]]; then
+    echo "=== Building test binary ==="
+    clang++ -std=c++17 -O2 \
+        -I "${ONNXRT_PREFIX}/include" \
+        -I "${ONNXRT_PREFIX}/include/onnxruntime" \
+        -L "${ONNXRT_PREFIX}/lib" \
+        -L "$(pwd)" \
+        -lonnxruntime -lgliner \
+        ${TOK_FLAGS} \
+        -o test_gliner \
+        src/test_main.cpp
+    echo "=== Built: test_gliner ==="
+fi
