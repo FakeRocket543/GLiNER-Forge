@@ -93,15 +93,20 @@ class GLiNERStandalone:
         })[0]  # shape: (1, num_words, max_width, num_labels)
 
         # Step 8: Decode
-        return self._decode(logits[0], words, labels, word_starts, word_ends, threshold, flat_ner)
+        return self._decode(logits[0], words, labels, word_starts, word_ends, threshold, flat_ner, text)
 
-    _WORD_RE = __import__("re").compile(r"\w+(?:[-_]\w+)*|\S")
+    # CJK-aware: each CJK/Kana character is its own word; Hangul/alphabetic scripts use word boundaries
+    _WORD_RE = __import__("re").compile(
+        r"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]"  # CJK Unified Ideographs (char-level)
+        r"|[\u3040-\u309f\u30a0-\u30ff]"                # Hiragana + Katakana (char-level)
+        r"|[\uac00-\ud7af]+"                            # Hangul Syllables (word-level, space-separated)
+        r"|[^\W\d_]+(?:[-_][^\W\d_]+)*"                 # Any alphabetic word (Latin, Cyrillic, Arabic, Thai, etc.)
+        r"|[0-9]+(?:[.,][0-9]+)*"                       # Numbers
+        r"|[^\s]"                                        # Other single non-space chars
+    )
 
     def _split_words(self, text: str) -> tuple[list[str], list[int], list[int]]:
-        """Split text into words using GLiNER's whitespace pattern.
-
-        Uses regex \\w+(?:[-_]\\w+)*|\\S which handles CJK (each char = 1 word).
-        """
+        """Split text into words. CJK: each character = 1 word. Others: standard tokenization."""
         words, starts, ends = [], [], []
         for m in self._WORD_RE.finditer(text):
             words.append(m.group())
@@ -141,7 +146,8 @@ class GLiNERStandalone:
 
     def _decode(
         self, logits: np.ndarray, words: list[str], labels: list[str],
-        word_starts: list[int], word_ends: list[int], threshold: float, flat_ner: bool
+        word_starts: list[int], word_ends: list[int], threshold: float, flat_ner: bool,
+        original_text: str = ""
     ) -> list[dict]:
         """Decode logits (L, K, C) → entity list."""
         probs = 1.0 / (1.0 + np.exp(-logits))  # sigmoid
@@ -180,7 +186,7 @@ class GLiNERStandalone:
         for start, end, cls_idx, score in selected:
             if cls_idx >= len(labels):
                 continue
-            entity_text = " ".join(words[start:end + 1])
+            entity_text = original_text[word_starts[start]:word_ends[end]]
             entities.append({
                 "text": entity_text,
                 "label": labels[cls_idx],

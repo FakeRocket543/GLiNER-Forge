@@ -67,12 +67,42 @@ struct Word {
 };
 
 static std::vector<Word> split_words(const std::string &text) {
-    static const std::regex word_re(R"(\w+(?:[-_]\w+)*|\S)");
     std::vector<Word> words;
-    auto begin = std::sregex_iterator(text.begin(), text.end(), word_re);
-    auto end = std::sregex_iterator();
-    for (auto it = begin; it != end; ++it) {
-        words.push_back({it->str(), (int)it->position(), (int)(it->position() + it->length())});
+    int i = 0;
+    int len = (int)text.size();
+    while (i < len) {
+        unsigned char c = text[i];
+        // UTF-8 CJK detection (U+4E00-9FFF, U+3400-4DBF, U+F900-FAFF)
+        if ((c & 0xF0) == 0xE0 && i + 2 < len) {
+            int cp = ((c & 0x0F) << 12) | ((text[i+1] & 0x3F) << 6) | (text[i+2] & 0x3F);
+            if ((cp >= 0x4E00 && cp <= 0x9FFF) || (cp >= 0x3400 && cp <= 0x4DBF) ||
+                (cp >= 0xF900 && cp <= 0xFAFF) || (cp >= 0x3000 && cp <= 0x303F)) {
+                words.push_back({text.substr(i, 3), i, i + 3});
+                i += 3;
+                continue;
+            }
+        }
+        // Skip whitespace
+        if (c == ' ' || c == '\t' || c == '\n' || c == '\r') { i++; continue; }
+        // ASCII word
+        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
+            int start = i;
+            while (i < len && ((text[i] >= 'a' && text[i] <= 'z') || (text[i] >= 'A' && text[i] <= 'Z') ||
+                   text[i] == '-' || text[i] == '_')) i++;
+            words.push_back({text.substr(start, i - start), start, i});
+            continue;
+        }
+        // Digits
+        if (c >= '0' && c <= '9') {
+            int start = i;
+            while (i < len && text[i] >= '0' && text[i] <= '9') i++;
+            words.push_back({text.substr(start, i - start), start, i});
+            continue;
+        }
+        // Other single character (punctuation, symbols)
+        int char_len = (c < 0x80) ? 1 : (c < 0xE0) ? 2 : (c < 0xF0) ? 3 : 4;
+        words.push_back({text.substr(i, char_len), i, i + char_len});
+        i += char_len;
     }
     return words;
 }
