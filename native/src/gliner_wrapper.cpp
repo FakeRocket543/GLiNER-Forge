@@ -20,7 +20,6 @@
 #include <cstring>
 #include <fstream>
 #include <memory>
-#include <regex>
 #include <string>
 #include <vector>
 
@@ -66,43 +65,93 @@ struct Word {
     int end;
 };
 
+// Check if a UTF-8 codepoint is a CJK ideograph (should be split per-char)
+static bool is_cjk(int cp) {
+    return (cp >= 0x4E00 && cp <= 0x9FFF) || (cp >= 0x3400 && cp <= 0x4DBF) ||
+           (cp >= 0xF900 && cp <= 0xFAFF) || (cp >= 0x3040 && cp <= 0x30FF);
+}
+
+// Decode one UTF-8 character, return codepoint and advance index
+static int utf8_decode(const std::string &s, int &i) {
+    unsigned char c = s[i];
+    int cp, len;
+    if (c < 0x80) { cp = c; len = 1; }
+    else if ((c & 0xE0) == 0xC0) { cp = c & 0x1F; len = 2; }
+    else if ((c & 0xF0) == 0xE0) { cp = c & 0x0F; len = 3; }
+    else { cp = c & 0x07; len = 4; }
+    for (int j = 1; j < len && i + j < (int)s.size(); j++)
+        cp = (cp << 6) | (s[i + j] & 0x3F);
+    i += len;
+    return cp;
+}
+
+// Check if codepoint is an alphabetic character (non-CJK, non-digit, non-punct)
+static bool is_alpha(int cp) {
+    if (cp >= 'a' && cp <= 'z') return true;
+    if (cp >= 'A' && cp <= 'Z') return true;
+    // Latin Extended, Cyrillic, Greek, Arabic, Thai, Devanagari, etc.
+    if (cp >= 0x00C0 && cp <= 0x024F) return true;  // Latin Extended
+    if (cp >= 0x0400 && cp <= 0x04FF) return true;  // Cyrillic
+    if (cp >= 0x0370 && cp <= 0x03FF) return true;  // Greek
+    if (cp >= 0x0600 && cp <= 0x06FF) return true;  // Arabic
+    if (cp >= 0x0900 && cp <= 0x097F) return true;  // Devanagari
+    if (cp >= 0x0E00 && cp <= 0x0E7F) return true;  // Thai
+    if (cp >= 0x1E00 && cp <= 0x1EFF) return true;  // Latin Extended Additional (Vietnamese)
+    if (cp >= 0xAC00 && cp <= 0xD7AF) return true;  // Hangul Syllables
+    if (cp >= 0x1100 && cp <= 0x11FF) return true;  // Hangul Jamo
+    return false;
+}
+
+static int utf8_char_len(unsigned char c) {
+    if (c < 0x80) return 1;
+    if ((c & 0xE0) == 0xC0) return 2;
+    if ((c & 0xF0) == 0xE0) return 3;
+    return 4;
+}
+
 static std::vector<Word> split_words(const std::string &text) {
     std::vector<Word> words;
-    int i = 0;
-    int len = (int)text.size();
+    int i = 0, len = (int)text.size();
     while (i < len) {
         unsigned char c = text[i];
-        // UTF-8 CJK detection (U+4E00-9FFF, U+3400-4DBF, U+F900-FAFF)
-        if ((c & 0xF0) == 0xE0 && i + 2 < len) {
-            int cp = ((c & 0x0F) << 12) | ((text[i+1] & 0x3F) << 6) | (text[i+2] & 0x3F);
-            if ((cp >= 0x4E00 && cp <= 0x9FFF) || (cp >= 0x3400 && cp <= 0x4DBF) ||
-                (cp >= 0xF900 && cp <= 0xFAFF) || (cp >= 0x3000 && cp <= 0x303F)) {
-                words.push_back({text.substr(i, 3), i, i + 3});
-                i += 3;
-                continue;
-            }
-        }
         // Skip whitespace
         if (c == ' ' || c == '\t' || c == '\n' || c == '\r') { i++; continue; }
-        // ASCII word
-        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
-            int start = i;
-            while (i < len && ((text[i] >= 'a' && text[i] <= 'z') || (text[i] >= 'A' && text[i] <= 'Z') ||
-                   text[i] == '-' || text[i] == '_')) i++;
+
+        int start = i;
+        int cp_i = i;
+        int cp = utf8_decode(text, cp_i);
+
+        // CJK/Kana: single character per word
+        if (is_cjk(cp)) {
+            words.push_back({text.substr(start, cp_i - start), start, cp_i});
+            i = cp_i;
+            continue;
+        }
+
+        // Alphabetic: consume entire word
+        if (is_alpha(cp)) {
+            i = cp_i;
+            while (i < len) {
+                int next_i = i;
+                int next_cp = utf8_decode(text, next_i);
+                if (is_alpha(next_cp) || next_cp == '-' || next_cp == '_') {
+                    i = next_i;
+                } else break;
+            }
             words.push_back({text.substr(start, i - start), start, i});
             continue;
         }
+
         // Digits
-        if (c >= '0' && c <= '9') {
-            int start = i;
+        if (cp >= '0' && cp <= '9') {
             while (i < len && text[i] >= '0' && text[i] <= '9') i++;
             words.push_back({text.substr(start, i - start), start, i});
             continue;
         }
-        // Other single character (punctuation, symbols)
-        int char_len = (c < 0x80) ? 1 : (c < 0xE0) ? 2 : (c < 0xF0) ? 3 : 4;
-        words.push_back({text.substr(i, char_len), i, i + char_len});
-        i += char_len;
+
+        // Any other single character
+        i = cp_i;
+        words.push_back({text.substr(start, i - start), start, i});
     }
     return words;
 }
@@ -320,12 +369,10 @@ GlinerResult gliner_predict(GlinerHandle handle,
             result.entities = (GlinerEntity *)calloc(result.num_entities, sizeof(GlinerEntity));
             for (int i = 0; i < result.num_entities; i++) {
                 auto &sel = selected[i];
-                // Reconstruct text from words
-                std::string ent_text;
-                for (int w = sel.start; w <= sel.end; w++) {
-                    if (w > sel.start) ent_text += " ";
-                    ent_text += words[w].text;
-                }
+                // Use original text offsets for proper CJK entity text
+                std::string ent_text = std::string(text).substr(
+                    words[sel.start].start,
+                    words[sel.end].end - words[sel.start].start);
                 result.entities[i].text = strdup_safe(ent_text);
                 result.entities[i].label = strdup_safe(labels[sel.cls]);
                 result.entities[i].score = sel.score;
