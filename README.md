@@ -6,8 +6,8 @@ Zero-shot NER (Named Entity Recognition) via GLiNER2, benchmarked across **macOS
 
 | Track | Purpose | Runtime | Use case |
 |-------|---------|---------|----------|
-| `python/` | Research & iteration | MLX Python / ONNX Runtime | 快速實驗、模型轉換、精度驗證 |
-| `native/` | Production FFI | MLX C++ → dylib | Swift/Dart app 嵌入 |
+| `python/` | Research & iteration | MLX Python / ONNX Runtime | Fast experiments, model conversion, accuracy validation |
+| `native/` | Production FFI | MLX C++ → dylib | Swift/Dart app embedding |
 
 ## Quick Start
 
@@ -46,10 +46,10 @@ Using `gliner2-multi-v1` (mDeBERTa-v3-base, 100+ languages).
 
 | Method | NER | Relation Extraction | Notes |
 |--------|-----|---------------------|-------|
-| FP16 | ✅ | ✅ | 推薦，精度無損 |
-| INT8 | ✅ 可用 | ⚠️ 待測 | fp16→fp32→int8 三步轉換，見 `convert/fix_fp16.py` |
-| INT4/Q4 | ❌ 無人測試 | ❌ | DeBERTa encoder 可能崩潰 |
-| GGUF | ❌ 不可行 | ❌ | llama.cpp 不支援 encoder-only |
+| FP16 | ✅ | ✅ | Recommended, lossless accuracy |
+| INT8 | ✅ Works | ⚠️ Pending | 3-step fp16→fp32→int8 conversion, see `convert/fix_fp16.py` |
+| INT4/Q4 | ❌ Untested | ❌ | DeBERTa encoder may crash |
+| GGUF | ❌ Not feasible | ❌ | llama.cpp does not support encoder-only models |
 
 ### INT8 on RK3588S (NanoPi M6)
 
@@ -58,9 +58,9 @@ Using `gliner2-multi-v1` (mDeBERTa-v3-base, 100+ languages).
 | fp16 | 531MB | 1878ms | 1.00× |
 | **int8** | **322MB** | **853ms** | **2.20×** |
 
-> 詳見 [`reports/rk3588s_benchmark.md`](reports/rk3588s_benchmark.md)
+> See [`reports/rk3588s_benchmark.md`](reports/rk3588s_benchmark.md)
 
-**⚠️ INT8 量化踩坑：** fp16 ONNX 直接做 `quantize_dynamic` 會爆，需要先清除 153+ 個隱藏的 fp16 tensor（Constant 節點屬性、ConstantOfShape、Cast target）。用 `python/convert/fix_fp16.py` 處理。
+**⚠️ INT8 quantization pitfall:** Running `quantize_dynamic` directly on fp16 ONNX will fail. You must first strip 153+ hidden fp16 tensors (Constant node attributes, ConstantOfShape, Cast targets). Use `python/convert/fix_fp16.py` to handle this.
 
 ## Directory Layout
 
